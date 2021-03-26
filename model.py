@@ -18,7 +18,7 @@ class HumorDetectionModel(Module):
             bidirectional=True,
             dropout=dropout
         )
-        self.output_layer = torch.nn.Linear(rnn_size, out_features=2)
+        self.output_layer = torch.nn.Linear(rnn_size*2, out_features=2)
 
     def to(self, *args, **kwargs):
         self.bert = self.bert.to(*args, **kwargs)
@@ -37,12 +37,8 @@ class HumorDetectionModel(Module):
         ).last_hidden_state
         if self.use_ambiguity:
             bert_embeds = torch.cat((bert_embeds, ambiguity_scores), dim=-1)
-        print(bert_embeds.size())
         rnn_output, (hn, cn) = self.rnn(bert_embeds)
-        print(hn.size())
-        hn = torch.sum(hn, dim=0)  # add the two directional layers
-        print(hn.size())
-        return self.output_layer(hn[:, -1, :])  # feed final LSTM output to the output layer
+        return self.output_layer(rnn_output[:, -1, :])  # feed final LSTM output to the output layer
 
 
 if __name__ == "__main__":
