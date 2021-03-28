@@ -18,8 +18,9 @@ class HumorDetectionModel(Module):
             bidirectional=True,
             dropout=dropout
         )
-        self.output_layer = torch.nn.Linear(rnn_size, out_features=2)
         self.loss_fnc = CrossEntropyLoss()
+        self.output_layer = torch.nn.Linear(rnn_size*2, out_features=2)
+
 
     def to(self, *args, **kwargs):
         self.bert = self.bert.to(*args, **kwargs)
@@ -36,20 +37,15 @@ class HumorDetectionModel(Module):
         ).last_hidden_state
         if self.use_ambiguity:
             bert_embeds = torch.cat((bert_embeds, ambiguity_scores), dim=-1)
-        print(bert_embeds.size())
         rnn_output, (hn, cn) = self.rnn(bert_embeds)
-        print(hn.size())
-        hn = torch.sum(hn, dim=0)  # add the two directional layers
-        print(hn.size())
+        logits = self.output_layer(rnn_output[:, -1, :])  # feed final LSTM output to the output layer
 
+        ## transformers expects output tuple (loss, )
         output = ()
-
-        logits = self.output_layer(hn)  # feed final LSTM output to the output layer
         if labels is not None:
             loss = self.loss_fnc(logits, labels)
             output = (loss,)
 
-        ## transformers expects output tuple (loss, )
         output += (logits,)
 
         return output
