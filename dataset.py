@@ -1,24 +1,58 @@
 import torch
 from transformers import BertTokenizer
+import csv
 
 # See https://pytorch.org/tutorials/beginner/data_loading_tutorial.html for reference
 
 
 class HumorDetectionDataset(torch.utils.data.Dataset):
-    def __init__(self, max_len):
+    def __init__(self, file_path, max_len):
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
-        # TODO: load data (loop through data, encoding it with self.tokenizer and saving data/labels using
-        #  class variables, etc.)
-        return
+        self.label_map = {label: i for i, label in enumerate(["0", "1"])}
+        self.max_len = max_len
+        self.length = 0
+        self.lines = []
+        self.labels = []
+        self.read_tsv(file_path)
+
+    def read_tsv(self, file_path):
+        with open(file_path, "r") as f:
+            reader = csv.reader(f, delimiter=",")
+            for line in reader:
+                text_a = line[3]
+                label = line[1]
+                self.lines.append(text_a)
+                self.labels.append(self.label_map[label])
+        self.length = len(self.lines)
+
 
     def __len__(self):
-        # TODO: return length of dataset
-        return 0
+        return self.length
 
     def __getitem__(self, index):
-        # TODO: pad/crop text encoding sequence, return dict of PyTorch tensors (no batch dimension)
+        text = self.lines[index]
+        label = self.labels[index]
+        encoded = self.tokenizer.encode_plus(
+            text,
+            add_special_tokens=True,
+            max_length=self.max_len,
+            padding='max_length',
+            truncation=True,
+            return_attention_mask=True
+        )
+
+        input_ids = torch.tensor(encoded['input_ids'], dtype=torch.long)
+        attn_mask = torch.tensor(encoded['attention_mask'], dtype=torch.float)
+
         return {
-            "text": None,
-            "ambiguity": None,
-            "pad_mask": None
+            "text": input_ids,
+            "ambiguity": torch.tensor([0]*self.max_len, dtype=torch.float),  # FIXME
+            "pad_mask": attn_mask,
+            "label": torch.tensor(label)
         }
+
+if __name__ == "__main__":
+    train = HumorDetectionDataset('data/dev.tsv', 128)
+    # print(train.lines)
+    print(train.length)
+    print(train[0])
