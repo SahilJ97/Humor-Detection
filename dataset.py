@@ -38,11 +38,13 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
             max_length=self.max_len,
             padding='max_length',
             truncation=True,
-            return_attention_mask=True
+            return_attention_mask=True,
+            return_special_tokens_mask=True
         )
 
         input_ids = torch.tensor(encoded['input_ids'], dtype=torch.long)
         attn_mask = torch.tensor(encoded['attention_mask'], dtype=torch.float)
+        print(encoded['special_tokens_mask'])
 
         return {
             "text": input_ids,
