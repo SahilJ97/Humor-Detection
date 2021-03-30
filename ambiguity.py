@@ -6,6 +6,8 @@ import csv
 
 def lesk_ambiguity_score(context_sentence, ambiguous_word, pos=None, synsets=None):
     """Code adapted from https://www.nltk.org/_modules/nltk/wsd.html"""
+    if not ambiguous_word.isalpha():
+        return 0.
     context = set(context_sentence)
     if synsets is None:
         synsets = wordnet.synsets(ambiguous_word)
