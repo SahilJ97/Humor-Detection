@@ -1,6 +1,7 @@
 import torch
 from transformers import BertTokenizer
 import csv
+import utils
 
 # See https://pytorch.org/tutorials/beginner/data_loading_tutorial.html for reference
 
@@ -19,7 +20,7 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
         with open(file_path, "r") as f:
             reader = csv.reader(f, delimiter=",")
             for line in reader:
-                text_a = line[3]
+                text_a = utils.prepare_text(line[3])
                 label = line[1]
                 self.lines.append(text_a)
                 self.labels.append(self.label_map[label])
@@ -44,7 +45,6 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
 
         input_ids = torch.tensor(encoded['input_ids'], dtype=torch.long)
         attn_mask = torch.tensor(encoded['attention_mask'], dtype=torch.float)
-        print(encoded['special_tokens_mask'])
 
         return {
             "text": input_ids,
@@ -53,8 +53,8 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
             "label": torch.tensor(label)
         }
 
+
 if __name__ == "__main__":
     train = HumorDetectionDataset('data/dev.tsv', 128)
-    # print(train.lines)
     print(train.length)
     print(train[0])
