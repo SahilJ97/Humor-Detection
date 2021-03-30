@@ -119,7 +119,7 @@ def train(args, dataset, eval_dataset, model):
             outputs = model(**inputs)
             loss = outputs[0]
 
-            loss.backwards()
+            loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
             optim.step()
 
@@ -251,8 +251,8 @@ def main():
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
         # Build dataset and train
-        train_dataset = HumorDetectionDataset(args.data_dir + 'train.tsv', args.max_seq_length)
-        eval_dataset = HumorDetectionDataset(args.data_dir + 'dev.tsv', args.max_seq_length)
+        train_dataset = HumorDetectionDataset(os.path.join(args.data_dir, 'train.tsv'), args.max_seq_length)
+        eval_dataset = HumorDetectionDataset(os.paht.join(args.data_dir, 'dev.tsv'), args.max_seq_length)
 
         logger.info('Training: learning_rate = %s, batch_size = %s', args.learning_rate, args.batch_size)
         global_step, tr_loss, results = train(args, train_dataset, eval_dataset, model)
