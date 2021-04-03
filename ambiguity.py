@@ -47,7 +47,7 @@ def main():
                             scores.append((word, 0))
                         else:
                             scores.append((word, lesk_ambiguity_score(text, word)))
-                    out_row = row + scores
+                    out_row = row + [scores]
                     writer.writerow(out_row)
 
 

@@ -2,6 +2,7 @@ import torch
 from transformers import BertTokenizer
 import csv
 import utils
+import tokenizations
 
 # See https://pytorch.org/tutorials/beginner/data_loading_tutorial.html for reference
 
@@ -13,6 +14,7 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
         self.max_len = max_len
         self.length = 0
         self.lines = []
+        self.word_ambiguity = []
         self.labels = []
         self.read_tsv(file_path)
 
@@ -22,7 +24,9 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
             for line in reader:
                 text_a = utils.prepare_text(line[3])
                 label = line[1]
+                ambiguity = eval(line[4])
                 self.lines.append(text_a)
+                self.word_ambiguity.append(ambiguity)
                 self.labels.append(self.label_map[label])
         self.length = len(self.lines)
 
@@ -39,28 +43,35 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
             padding='max_length',
             truncation=False,
             return_attention_mask=True,
-            return_special_tokens_mask=True
+            return_special_tokens_mask=True,
         )
         input_ids = torch.tensor(encoded['input_ids'], dtype=torch.long)
         attn_mask = torch.tensor(encoded['attention_mask'], dtype=torch.float)
 
+        # Align ambiguity scores with BERT tokens
+        bert_tokens = self.tokenizer.convert_ids_to_tokens(input_ids)
+        alt_tokens, ambiguity_scores = zip(*self.word_ambiguity[index])
+        bert_to_alt, alt_to_bert = tokenizations.get_alignments(bert_tokens, alt_tokens)
+        aligned_scores = [0]*self.max_len
+        for i in range(len(alt_to_bert)):
+            for j in alt_to_bert[i]:
+                aligned_scores[j] = ambiguity_scores[i]
+
         return {
             "text": input_ids,
-            "ambiguity": torch.tensor([0]*self.max_len, dtype=torch.float),  # FIXME
+            "ambiguity": torch.tensor(aligned_scores),
             "pad_mask": attn_mask,
             "label": torch.tensor(label)
         }
 
 
 if __name__ == "__main__":
-    train = HumorDetectionDataset('data/dev.tsv', 512)
+    train = HumorDetectionDataset('data/dev_with_amb.tsv', 512)
     print(train.length)
-    print(train[0])
     total, exceeded = 0, 0
     for item in train:
         total += 1
         if len(item["text"]) > 512:
-            print(len(item["text"]))
             exceeded += 1
     print(exceeded/total)
 

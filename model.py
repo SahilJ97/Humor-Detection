@@ -21,7 +21,6 @@ class HumorDetectionModel(Module):
         self.loss_fnc = CrossEntropyLoss()
         self.output_layer = torch.nn.Linear(rnn_size*2, out_features=2)
 
-
     def to(self, *args, **kwargs):
         self.bert = self.bert.to(*args, **kwargs)
         self.rnn = self.rnn.to(*args, **kwargs)
@@ -49,6 +48,7 @@ class HumorDetectionModel(Module):
         output += (logits,)
 
         return output
+
 
 if __name__ == "__main__":
     model = HumorDetectionModel(rnn_size=5, dropout=.2)
