@@ -251,8 +251,8 @@ def main():
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
         # Build dataset and train
-        train_dataset = HumorDetectionDataset(os.path.join(args.data_dir, 'train.tsv'), args.max_seq_length)
-        eval_dataset = HumorDetectionDataset(os.path.join(args.data_dir, 'dev.tsv'), args.max_seq_length)
+        train_dataset = HumorDetectionDataset(os.path.join(args.data_dir, 'train_with_amb.tsv'), args.max_seq_length)
+        eval_dataset = HumorDetectionDataset(os.path.join(args.data_dir, 'dev_with_amb.tsv'), args.max_seq_length)
 
         logger.info('Training: learning_rate = %s, batch_size = %s', args.learning_rate, args.batch_size)
         global_step, tr_loss, results = train(args, train_dataset, eval_dataset, model)
