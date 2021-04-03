@@ -26,7 +26,6 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
                 self.labels.append(self.label_map[label])
         self.length = len(self.lines)
 
-
     def __len__(self):
         return self.length
 
@@ -38,11 +37,10 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
             add_special_tokens=True,
             max_length=self.max_len,
             padding='max_length',
-            truncation=True,
+            truncation=False,
             return_attention_mask=True,
             return_special_tokens_mask=True
         )
-
         input_ids = torch.tensor(encoded['input_ids'], dtype=torch.long)
         attn_mask = torch.tensor(encoded['attention_mask'], dtype=torch.float)
 
@@ -55,6 +53,14 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
 
 
 if __name__ == "__main__":
-    train = HumorDetectionDataset('data/dev.tsv', 128)
+    train = HumorDetectionDataset('data/dev.tsv', 512)
     print(train.length)
     print(train[0])
+    total, exceeded = 0, 0
+    for item in train:
+        total += 1
+        if len(item["text"]) > 512:
+            print(len(item["text"]))
+            exceeded += 1
+    print(exceeded/total)
+
