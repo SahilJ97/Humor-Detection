@@ -1,34 +1,68 @@
 import torch
 from transformers import BertTokenizer
 import csv
+import os
 import utils
 import tokenizations
+from tqdm import tqdm
 
 # See https://pytorch.org/tutorials/beginner/data_loading_tutorial.html for reference
+class InputExample(object):
+    """A single training/test example for simple sequence classification."""
+    def __init__(self, text_a, text_b, label, ambiguity, original):
+        self.text_a = text_a
+        self.text_b = text_b
+        self.label = label
+        self.ambiguity = ambiguity
+        self.original = original
 
 
 class HumorDetectionDataset(torch.utils.data.Dataset):
-    def __init__(self, file_path, max_len):
+    def __init__(self, data_dir, max_len, task='train'):
         self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
         self.label_map = {label: i for i, label in enumerate(["0", "1"])}
         self.max_len = max_len
         self.length = 0
-        self.lines = []
+        self.originals = []
+        self.line_a = []
+        self.line_b = []
         self.word_ambiguity = []
         self.labels = []
-        self.read_tsv(file_path)
+
+        data_file = task+'_with_amb.tsv'
+        self.read_tsv(os.path.join(data_dir, data_file))
 
     def read_tsv(self, file_path):
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding='utf8') as f:
             reader = csv.reader(f, delimiter=",")
             for line in reader:
-                text_a = utils.prepare_text(line[3])
                 label = line[1]
-                ambiguity = eval(line[4])
-                self.lines.append(text_a)
-                self.word_ambiguity.append(ambiguity)
+
+                text = line[3].split('_____')
+                self.line_a.append(text[0])
+                self.line_b.append(text[1])
+                self.originals.append(line[3])
+
                 self.labels.append(self.label_map[label])
-        self.length = len(self.lines)
+                ambiguity = eval(line[4])
+                self.word_ambiguity.append(ambiguity)
+
+        self.length = len(self.line_a)
+
+    def get_examples(self):
+        examples = []
+
+        # build examples
+        for ix in range(self.length):
+            ex = InputExample(
+                text_a=self.line_a[ix],
+                text_b=self.line_b[ix],
+                label=self.labels[ix],
+                ambiguity=self.word_ambiguity[ix],
+                original=self.originals[ix]
+            )
+            examples.append(ex)
+        return examples
 
     def __len__(self):
         return self.length
@@ -66,12 +100,19 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
 
 
 if __name__ == "__main__":
-    train = HumorDetectionDataset('data/dev_with_amb.tsv', 512)
-    print(train.length)
+    print('loading dataset')
+    data_dir = 'data/'
+    max_seq_len = 512
+    task = 'train'
+    train = HumorDetectionDataset(data_dir, max_seq_len, task)
+    print('dataset loaded, length -', train.length)
+
+    '''
     total, exceeded = 0, 0
-    for item in train:
+    for item in tqdm(train):
         total += 1
         if len(item["text"]) > 512:
             exceeded += 1
-    print(exceeded/total)
+    print(exceeded, total)
+    '''
 

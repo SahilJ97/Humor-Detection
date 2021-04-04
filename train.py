@@ -3,13 +3,15 @@ Training script for Humor Detection
 '''
 import logging
 import os
+import json
 import argparse
 import random
 import torch
 import numpy as np
 from sklearn.metrics import accuracy_score
+from utils import convert_dataset_to_features
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm, trange
 
 from transformers import AdamW, Trainer, TrainingArguments, BertTokenizer
@@ -34,13 +36,16 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     # Required parameters
-    parser.add_argument("--data_dir", default=None, type=str, required=True,
+    parser.add_argument("--json", metavar='JSON', type=str,
+                        help='json of arguments listed below')
+
+    parser.add_argument("--data_dir", default=None, type=str,
                         help="The input data dir. Should contain the files for the task.")
-    parser.add_argument("--output_dir", default=None, type=str, required=True,
+    parser.add_argument("--output_dir", default=None, type=str,
                         help="The output directory where the model predictions and checkpoints will be written.")
 
     # Other parameters
-    parser.add_argument("--max_seq_length", default=128, type=int,
+    parser.add_argument("--max_seq_length", default=512, type=int,
                         help="The maximum total input sequence length after tokenization. Sequences longer "
                              "than this will be truncated, sequences shorter will be padded.")
     parser.add_argument("--do_train", action='store_true',
@@ -74,14 +79,51 @@ def parse_args():
     parser.add_argument('--seed', type=int, default=100,
                         help="random seed for initialization")
 
-    parser.add_argument('--use_ambiguity', action='store_true', default=True,
+    parser.add_argument('--use_ambiguity', action='store_true', default=False,
                         help='use the ambiguity scoring during training.')
     parser.add_argument('--rnn_size', type=int, default=5,
                         help='hidden dimension of the RNN.')
 
-    args = parser.parse_args()
+    args = parser.parse_args("--json args.json".split())
 
     return args
+
+
+def load_and_cache_examples(args, tokenizer, evaluate=False):
+    '''
+    Loads in a cached file for training and/or builds a cached file for this data
+
+    :return:
+    '''
+    # Build the dataset
+    task = 'dev' if evaluate else 'train'
+    cached_features_files = os.path.join(args.data_dir, 'cached_{}_{}_{}'.format(
+        task,
+        'ambiguity' if args.use_ambiguity else 'no-ambiguity',
+        str(args.max_seq_length)))
+
+    if os.path.exists(cached_features_files):
+        logger.info("Creating features from dataset file at %s", os.path.join(args.data_dir, cached_features_files))
+        features = torch.load(cached_features_files)
+    else:
+        logger.info("Creating features from dataset file at %s", args.data_dir)
+
+        dataset = HumorDetectionDataset(args.data_dir, args.max_seq_length, task)
+        features = convert_dataset_to_features(dataset, args.max_seq_length, tokenizer)
+
+        logger.info("Saving features into cached file %s", cached_features_files)
+        torch.save(features, cached_features_files)
+
+    # convert features to tensor dataset
+    input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
+    input_masks = torch.tensor([f.input_mask for f in features], dtype=torch.long)
+    token_type_ids = torch.tensor([f.token_type_ids for f in features], dtype=torch.long)
+    ambiguity_scores = torch.tensor([f.ambiguity for f in features], dtype=torch.long)
+    labels = torch.tensor([f.label_id for f in features], dtype=torch.long)
+
+    dataset = TensorDataset(input_ids, input_masks, token_type_ids, ambiguity_scores, labels)
+
+    return dataset
 
 
 def train(args, dataset, eval_dataset, model):
@@ -109,12 +151,13 @@ def train(args, dataset, eval_dataset, model):
         model.train()
         for step, batch in enumerate(epoch_iterator):
             optim.zero_grad()
-            batch = tuple(t.to(args.device) for _,t in batch.items())
+            batch = tuple(t.to(args.device) for t in batch)
 
             inputs = {'token_indices': batch[0],
                       'ambiguity_scores': batch[1],
-                      'attention_mask': batch[2],
-                      'labels': batch[3]}
+                      'token_type_ids': batch[2],
+                      'attention_mask': batch[3],
+                      'labels': batch[4]}
 
             outputs = model(**inputs)
             loss = outputs[0]
@@ -134,17 +177,19 @@ def train(args, dataset, eval_dataset, model):
 
     return global_step, tr_loss / global_step, results
 
+
 def train_trainer(args, train_dataset, eval_dataset, model):
     ## TODO: warmup ratio to steps
 
     training_args = TrainingArguments(
         output_dir=args.output_dir,
-        num_train_epoch=args.epochs,
+        num_train_epochs=args.epochs,
         per_device_train_batch_size=args.batch_size,
         per_device_eval_batch_size=args.eval_batch_size,
         weight_decay=args.weight_decay,
         learning_rate=args.learning_rate,
-        adam_epsilon=args.adam_epsilon
+        adam_epsilon=args.adam_epsilon,
+        no_cuda=args.no_cuda
     )
 
     trainer = Trainer(
@@ -215,17 +260,21 @@ def evaluate(args, dataset, model, save=False):
     return results
 
 
-'''
-Used to calculate the different evaluation metrics for our task(s)
-'''
 def compute_metrics(preds, labels):
+    '''
+    Used to calculate the different evaluation metrics for our task(s)
+    '''
     results = {}
     results['acc'] = accuracy_score(preds, labels)
     return results
 
 
 def main():
+    # Json based args parsing
     args = parse_args()
+    with open(args.json) as f:
+        a = json.load(f)
+        args.__dict__.update(a)
 
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train and not args.overwrite_output_dir:
         raise ValueError("Output directory ({}) already exists and is not empty. Use --overwrite_output_dir to overcome.".format(args.output_dir))
@@ -243,7 +292,6 @@ def main():
     # Set seed
     set_seed(args)
 
-    # TODO: train
     if args.do_train:
         # build the model
         model = HumorDetectionModel(rnn_size=args.rnn_size, use_ambiguity=args.use_ambiguity)
@@ -251,8 +299,12 @@ def main():
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
         # Build dataset and train
-        train_dataset = HumorDetectionDataset(os.path.join(args.data_dir, 'train_with_amb.tsv'), args.max_seq_length)
-        eval_dataset = HumorDetectionDataset(os.path.join(args.data_dir, 'dev_with_amb.tsv'), args.max_seq_length)
+        train_dataset = load_and_cache_examples(args, tokenizer)
+        eval_dataset = load_and_cache_examples(args, tokenizer, True)
+
+        #print('Trainer attempt')
+        #train_trainer(args, train_dataset, eval_dataset, model)
+
 
         logger.info('Training: learning_rate = %s, batch_size = %s', args.learning_rate, args.batch_size)
         global_step, tr_loss, results = train(args, train_dataset, eval_dataset, model)
@@ -276,16 +328,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-
-
-
-
-
-
-
-
-
-
-
-

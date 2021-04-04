@@ -1,0 +1,9 @@
+{
+  "data_dir" : "data",
+  "output_dir" : "output_test",
+  "max_seq_length" : 512,
+  "do_train" : true,
+  "batch_size" : 1,
+  "eval_batch_size" : 1,
+  "no_cuda" : true
+}
