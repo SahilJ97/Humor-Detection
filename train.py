@@ -77,12 +77,11 @@ def parse_args():
                         help="Overwrite the content of the output directory")
     parser.add_argument('--seed', type=int, default=100,
                         help="random seed for initialization")
-
+    parser.add_argument('--ambiguity_fn', action='store_true', default="none",
+                        help='Ambiguity function. none, wn (for WordNet), or csi (for course sense inventory)')
     # Model parameters
     parser.add_argument('--bert_base', action='store_true', default=False,
                         help='loads in bert-base instead of our custom model.')
-    parser.add_argument('--use_ambiguity', action='store_true', default=False,
-                        help='use the ambiguity scoring during training.')
     parser.add_argument('--rnn_size', type=int, default=5,
                         help='hidden dimension of the RNN.')
 
@@ -101,7 +100,7 @@ def load_and_cache_examples(args, tokenizer, evaluate=False):
     task = 'dev' if evaluate else 'train'
     cached_features_files = os.path.join(args.data_dir, 'cached_{}_{}_{}'.format(
         task,
-        'ambiguity' if args.use_ambiguity else 'no-ambiguity',
+        args.ambiguity_fn,
         str(args.max_seq_length)))
 
     if os.path.exists(cached_features_files):
@@ -110,7 +109,7 @@ def load_and_cache_examples(args, tokenizer, evaluate=False):
     else:
         logger.info("Creating features from dataset file at %s", args.data_dir)
 
-        dataset = HumorDetectionDataset(args.data_dir, args.max_seq_length, task)
+        dataset = HumorDetectionDataset(args.data_dir, args.max_seq_length, task, args.ambiguity_fn)
         features = convert_dataset_to_features(dataset, args.max_seq_length, tokenizer)
 
         logger.info("Saving features into cached file %s", cached_features_files)
@@ -315,12 +314,13 @@ def main():
     # Set seed
     set_seed(args)
 
+    use_ambiguity = args.ambiguity_fn != "none"
     if args.do_train:
         # build the model
         logger.info('Loading in the Humor Detection model')
         if not args.bert_base:
             logger.info('Using custom model')
-            model = HumorDetectionModel(rnn_size=args.rnn_size, use_ambiguity=args.use_ambiguity)
+            model = HumorDetectionModel(rnn_size=args.rnn_size, use_ambiguity=use_ambiguity)
         else:
             logger.info('Loading in standard bert-base-uncased -- baseline testing')
             model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=2)

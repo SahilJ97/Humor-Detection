@@ -14,7 +14,7 @@ except OSError:
 logger = logging.getLogger(__name__)
 
 
-def prepare_text(text):
+def prepare_text(text):  # something happened to the ____ stuff...
     tokens = nlp(text)
     joined = " ".join([token.text for token in tokens])
     return joined.replace("SEP_TOKEN", "[SEP]")
