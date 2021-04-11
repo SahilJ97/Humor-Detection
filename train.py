@@ -151,6 +151,9 @@ def train(args, dataset, eval_dataset, model):
     for epoch in train_iterator:
         epoch_iterator = tqdm(train_loader, desc='Iteration')
         model.train()
+
+        ep_loss = 0.0
+        ep_step = 0
         for step, batch in enumerate(epoch_iterator):
             optim.zero_grad()
             batch = tuple(t.to(args.device) for t in batch)
@@ -171,10 +174,12 @@ def train(args, dataset, eval_dataset, model):
             optim.step()
 
             tr_loss += loss.item()
+            ep_loss += loss.item()
             global_step += 1
+            ep_step += 1
 
             # Adds loss and accuracy to the logging iterator
-            epoch_iterator.set_postfix_str("Loss: {}".format(round(tr_loss / global_step,5)))
+            epoch_iterator.set_postfix_str("Loss: {}".format(round(ep_loss / ep_step,5)))
 
         model.eval()
         end_of_train = args.epochs-1 == epoch
@@ -318,7 +323,7 @@ def main():
             model = HumorDetectionModel(rnn_size=args.rnn_size, use_ambiguity=args.use_ambiguity)
         else:
             logger.info('Loading in standard bert-base-uncased -- baseline testing')
-            model = BertForSequenceClassification.from_pretrained('bert-base-uncased')
+            model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=2)
 
         model.to(args.device)
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
