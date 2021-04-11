@@ -14,7 +14,7 @@ from utils import convert_dataset_to_features
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm, trange
 
-from transformers import AdamW, Trainer, TrainingArguments, BertTokenizer
+from transformers import AdamW, Trainer, TrainingArguments, BertTokenizer, BertForSequenceClassification
 
 from model import HumorDetectionModel
 from dataset import HumorDetectionDataset
@@ -36,7 +36,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     # Required parameters
-    parser.add_argument("--json", metavar='JSON', type=str,
+    parser.add_argument("--json", metavar='JSON', type=str, required=True,
                         help='json of arguments listed below')
 
     parser.add_argument("--data_dir", default=None, type=str,
@@ -44,7 +44,7 @@ def parse_args():
     parser.add_argument("--output_dir", default=None, type=str,
                         help="The output directory where the model predictions and checkpoints will be written.")
 
-    # Other parameters
+    # Training parameters
     parser.add_argument("--max_seq_length", default=512, type=int,
                         help="The maximum total input sequence length after tokenization. Sequences longer "
                              "than this will be truncated, sequences shorter will be padded.")
@@ -56,7 +56,6 @@ def parse_args():
                         help="Learning rate for full train if provided.")
     parser.add_argument("--eval_per_epoch", action='store_true',
                         help="Run evaluation at each epoch during training.")
-
     parser.add_argument("--batch_size", default=16, type=int,
                         help="Batch size per GPU/CPU for training.")
     parser.add_argument("--eval_batch_size", default=16, type=int,
@@ -80,10 +79,13 @@ def parse_args():
                         help="random seed for initialization")
     parser.add_argument('--ambiguity_fn', action='store_true', default="none",
                         help='Ambiguity function. none, wn (for WordNet), or csi (for course sense inventory)')
+    # Model parameters
+    parser.add_argument('--bert_base', action='store_true', default=False,
+                        help='loads in bert-base instead of our custom model.')
     parser.add_argument('--rnn_size', type=int, default=5,
                         help='hidden dimension of the RNN.')
 
-    args = parser.parse_args("--json args.json".split())
+    args = parser.parse_args()
 
     return args
 
@@ -152,11 +154,13 @@ def train(args, dataset, eval_dataset, model):
             optim.zero_grad()
             batch = tuple(t.to(args.device) for t in batch)
 
-            inputs = {'token_indices': batch[0],
-                      'ambiguity_scores': batch[1],
+            inputs = {'input_ids': batch[0],
                       'token_type_ids': batch[2],
                       'attention_mask': batch[3],
                       'labels': batch[4]}
+
+            if not args.bert_base:
+                inputs['ambiguity_scores'] = batch[1]
 
             outputs = model(**inputs)
             loss = outputs[0]
@@ -168,7 +172,8 @@ def train(args, dataset, eval_dataset, model):
             tr_loss += loss.item()
             global_step += 1
 
-            ## TODO: add loss & accuracy tqdm logger
+            # Adds loss and accuracy to the logging iterator
+            epoch_iterator.set_postfix_str("Loss: {}".format(round(tr_loss / global_step,5)))
 
         model.eval()
         end_of_train = args.epochs-1 == epoch
@@ -220,15 +225,21 @@ def evaluate(args, dataset, model, save=False):
     eval_loss = 0.0
     preds = None
     out_label_ids = None
-    for batch in tqdm(eval_loader, desc="Evaluating"):
+
+    it = tqdm(eval_loader, desc="Evaluating")
+    for batch in it:
         model.eval()
         batch = tuple(t.to(args.device) for t in batch)
 
         with torch.no_grad():
-            inputs = {'token_indices': batch[0],
-                      'ambiguity_scores': batch[1],
-                      'attention_mask': batch[2],
-                      'labels': batch[3]}
+            inputs = {'input_ids': batch[0],
+                      'token_type_ids': batch[2],
+                      'attention_mask': batch[3],
+                      'labels': batch[4]}
+
+            if not args.bert_base:
+                inputs['ambiguity_scores'] = batch[1]
+
             outputs = model(**inputs)
             tmp_eval_loss, logits = outputs[:2]
 
@@ -242,6 +253,8 @@ def evaluate(args, dataset, model, save=False):
         else:
             preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
             out_label_ids = np.append(out_label_ids, inputs['labels'].detach().cpu().numpy(), axis=0)
+
+        it.set_postfix_str('Loss: {}'.format(round(eval_loss / eval_step, 5)))
 
     eval_loss = eval_loss / eval_step
     preds = np.argmax(preds, axis=1)
@@ -275,6 +288,11 @@ def main():
         a = json.load(f)
         args.__dict__.update(a)
 
+    if args.data_dir is None:
+        raise ValueError('Error: data_dir (Data Directory) must be specified in args.json.')
+    if args.output_dir is None:
+        raise ValueError('Error: output_dir (Output Directory) must be specified in args.json.')
+
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train and not args.overwrite_output_dir:
         raise ValueError("Output directory ({}) already exists and is not empty. Use --overwrite_output_dir to overcome.".format(args.output_dir))
 
@@ -294,7 +312,14 @@ def main():
     use_ambiguity = args.ambiguity_fn != "none"
     if args.do_train:
         # build the model
-        model = HumorDetectionModel(rnn_size=args.rnn_size, use_ambiguity=use_ambiguity)
+        logger.info('Loading in the Humor Detection model')
+        if not args.bert_base:
+            logger.info('Using custom model')
+            model = HumorDetectionModel(rnn_size=args.rnn_size, use_ambiguity=use_ambiguity)
+        else:
+            logger.info('Loading in standard bert-base-uncased -- baseline testing')
+            model = BertForSequenceClassification.from_pretrained('bert-base-uncased')
+
         model.to(args.device)
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
@@ -304,7 +329,6 @@ def main():
 
         #print('Trainer attempt')
         #train_trainer(args, train_dataset, eval_dataset, model)
-
 
         logger.info('Training: learning_rate = %s, batch_size = %s', args.learning_rate, args.batch_size)
         global_step, tr_loss, results = train(args, train_dataset, eval_dataset, model)

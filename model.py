@@ -27,11 +27,11 @@ class HumorDetectionModel(Module):
         self.output_layer = self.output_layer.to(*args, **kwargs)
         return super().to(*args, **kwargs)
 
-    def forward(self, token_indices, attention_mask, token_type_ids, ambiguity_scores, labels=None):
+    def forward(self, input_ids, attention_mask, token_type_ids, ambiguity_scores, labels=None):
         print('Starting pass')
         ambiguity_scores = torch.unsqueeze(ambiguity_scores, dim=-1)
         bert_embeds = self.bert(
-            input_ids=token_indices,
+            input_ids=input_ids,
             token_type_ids=token_type_ids,
             attention_mask=attention_mask
         ).last_hidden_state
