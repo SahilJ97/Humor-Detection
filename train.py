@@ -14,7 +14,7 @@ from utils import convert_dataset_to_features
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm, trange
 
-from transformers import AdamW, Trainer, TrainingArguments, BertTokenizer
+from transformers import AdamW, Trainer, TrainingArguments, BertTokenizer, BertForSequenceClassification
 
 from model import HumorDetectionModel
 from dataset import HumorDetectionDataset
@@ -44,7 +44,7 @@ def parse_args():
     parser.add_argument("--output_dir", default=None, type=str,
                         help="The output directory where the model predictions and checkpoints will be written.")
 
-    # Other parameters
+    # Training parameters
     parser.add_argument("--max_seq_length", default=512, type=int,
                         help="The maximum total input sequence length after tokenization. Sequences longer "
                              "than this will be truncated, sequences shorter will be padded.")
@@ -56,7 +56,6 @@ def parse_args():
                         help="Learning rate for full train if provided.")
     parser.add_argument("--eval_per_epoch", action='store_true',
                         help="Run evaluation at each epoch during training.")
-
     parser.add_argument("--batch_size", default=16, type=int,
                         help="Batch size per GPU/CPU for training.")
     parser.add_argument("--eval_batch_size", default=16, type=int,
@@ -79,12 +78,15 @@ def parse_args():
     parser.add_argument('--seed', type=int, default=100,
                         help="random seed for initialization")
 
+    # Model parameters
+    parser.add_argument('--bert_base', action='store_true', default=False,
+                        help='loads in bert-base instead of our custom model.')
     parser.add_argument('--use_ambiguity', action='store_true', default=False,
                         help='use the ambiguity scoring during training.')
     parser.add_argument('--rnn_size', type=int, default=5,
                         help='hidden dimension of the RNN.')
 
-    args = parser.parse_args("--json args.json".split())
+    args = parser.parse_args()
 
     return args
 
@@ -153,11 +155,13 @@ def train(args, dataset, eval_dataset, model):
             optim.zero_grad()
             batch = tuple(t.to(args.device) for t in batch)
 
-            inputs = {'token_indices': batch[0],
-                      'ambiguity_scores': batch[1],
+            inputs = {'input_ids': batch[0],
                       'token_type_ids': batch[2],
                       'attention_mask': batch[3],
                       'labels': batch[4]}
+
+            if not args.bert_base:
+                inputs['ambiguity_scores'] = batch[1]
 
             outputs = model(**inputs)
             loss = outputs[0]
@@ -229,11 +233,14 @@ def evaluate(args, dataset, model, save=False):
         batch = tuple(t.to(args.device) for t in batch)
 
         with torch.no_grad():
-            inputs = {'token_indices': batch[0],
-                      'ambiguity_scores': batch[1],
+            inputs = {'input_ids': batch[0],
                       'token_type_ids': batch[2],
                       'attention_mask': batch[3],
                       'labels': batch[4]}
+
+            if not args.bert_base:
+                inputs['ambiguity_scores'] = batch[1]
+
             outputs = model(**inputs)
             tmp_eval_loss, logits = outputs[:2]
 
@@ -305,7 +312,14 @@ def main():
 
     if args.do_train:
         # build the model
-        model = HumorDetectionModel(rnn_size=args.rnn_size, use_ambiguity=args.use_ambiguity)
+        logger.info('Loading in the Humor Detection model')
+        if not args.bert_base:
+            logger.info('Using custom model')
+            model = HumorDetectionModel(rnn_size=args.rnn_size, use_ambiguity=args.use_ambiguity)
+        else:
+            logger.info('Loading in standard bert-base-uncased -- baseline testing')
+            model = BertForSequenceClassification.from_pretrained('bert-base-uncased')
+
         model.to(args.device)
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
