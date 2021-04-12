@@ -12,8 +12,8 @@ from sklearn.metrics import accuracy_score
 from utils import convert_dataset_to_features
 
 from torch.utils.data import DataLoader, TensorDataset
-from tqdm import trange#, tqdm
-from tqdm.notebook import tqdm
+from tqdm import trange, tqdm
+#from tqdm.notebook import tqdm
 
 from transformers import AdamW, Trainer, TrainingArguments, BertTokenizer, BertForSequenceClassification
 
