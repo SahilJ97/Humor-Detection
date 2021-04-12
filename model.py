@@ -28,7 +28,6 @@ class HumorDetectionModel(Module):
         return super().to(*args, **kwargs)
 
     def forward(self, input_ids, attention_mask, token_type_ids, ambiguity_scores, labels=None):
-        print('Starting pass')
         ambiguity_scores = torch.unsqueeze(ambiguity_scores, dim=-1)
         bert_embeds = self.bert(
             input_ids=input_ids,
