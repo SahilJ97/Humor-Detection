@@ -52,7 +52,7 @@ def parse_args():
                         help="Whether to run training.")
     parser.add_argument("--do_eval", action='store_true',
                         help="Whether to run eval on the dev set.")
-    parser.add_argument("--learning_rate", default=1e-3, type=float,
+    parser.add_argument("--learning_rate", default=1e-5, type=float,
                         help="Learning rate for full train if provided.")
     parser.add_argument("--eval_per_epoch", action='store_true',
                         help="Run evaluation at each epoch during training.")
@@ -82,8 +82,8 @@ def parse_args():
     # Model parameters
     parser.add_argument('--bert_base', action='store_true', default=False,
                         help='loads in bert-base instead of our custom model.')
-    parser.add_argument('--rnn_size', type=int, default=5,
-                        help='hidden dimension of the RNN.')
+    parser.add_argument('--rnn_size', type=int, default=768,
+                        help='Hidden dimension of each direction of the bi-LSTM.')
 
     args = parser.parse_args()
 
