@@ -12,3 +12,9 @@
 our other dataset class.
    
 5) Run experiments using ambiguity scoring on Reddit data
+
+6) Fix tqdm printing new line
+
+7) Train loss plateauing
+
+8) Fix eval dataset not printing accuracy and other metrics
