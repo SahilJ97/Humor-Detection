@@ -1,10 +1,10 @@
 {
   "data_dir" : "data",
   "output_dir" : "output_test",
-  "max_seq_length" : 512,
+  "max_seq_length" : 128,
   "do_train" : true,
-  "bert_base" : false,
-  "batch_size" : 16,
-  "eval_batch_size" : 16,
+  "bert_base" : true,
+  "batch_size" : 1,
+  "eval_batch_size" : 6,
   "no_cuda" : false
 }
