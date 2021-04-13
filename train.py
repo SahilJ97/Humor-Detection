@@ -12,7 +12,8 @@ from sklearn.metrics import accuracy_score
 from utils import convert_dataset_to_features
 
 from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm, trange
+from tqdm import trange, tqdm
+#from tqdm.notebook import tqdm
 
 from transformers import AdamW, Trainer, TrainingArguments, BertTokenizer, BertForSequenceClassification
 
@@ -132,6 +133,7 @@ def train(args, dataset, eval_dataset, model):
 
     # Loaders
     train_loader = DataLoader(dataset, shuffle=True, batch_size=args.batch_size)
+    steps_per_ep = len(dataset) / args.batch_size
 
     # Optimizer and scheduler
     optim = AdamW(model.parameters(), lr=args.learning_rate)
@@ -148,37 +150,38 @@ def train(args, dataset, eval_dataset, model):
     train_iterator = trange(int(args.epochs), desc='Epoch')
 
     for epoch in train_iterator:
-        epoch_iterator = tqdm(train_loader, desc='Iteration')
         model.train()
 
         ep_loss = 0.0
         ep_step = 0
-        for step, batch in enumerate(epoch_iterator):
-            optim.zero_grad()
-            batch = tuple(t.to(args.device) for t in batch)
 
-            inputs = {'input_ids': batch[0],
-                      'token_type_ids': batch[2],
-                      'attention_mask': batch[3],
-                      'labels': batch[4]}
+        with tqdm(train_loader, desc='Iteration') as ep_it:
+            for batch in ep_it:
+                optim.zero_grad()
+                batch = tuple(t.to(args.device) for t in batch)
 
-            if not args.bert_base:
-                inputs['ambiguity_scores'] = batch[1]
+                inputs = {'input_ids': batch[0],
+                          'token_type_ids': batch[2],
+                          'attention_mask': batch[3],
+                          'labels': batch[4]}
 
-            outputs = model(**inputs)
-            loss = outputs[0]
+                if not args.bert_base:
+                    inputs['ambiguity_scores'] = batch[1]
 
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-            optim.step()
+                outputs = model(**inputs)
+                loss = outputs[0]
 
-            tr_loss += loss.item()
-            ep_loss += loss.item()
-            global_step += 1
-            ep_step += 1
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                optim.step()
 
-            # Adds loss and accuracy to the logging iterator
-            epoch_iterator.set_postfix_str("Loss: {}".format(round(ep_loss / ep_step,5)))
+                tr_loss += loss.item()
+                ep_loss += loss.item()
+                global_step += 1
+                ep_step += 1
+
+                # Adds loss and accuracy to the logging iterator
+                ep_it.set_postfix_str("Loss: {}".format(round(ep_loss / ep_step,5)))
 
         model.eval()
         end_of_train = args.epochs-1 == epoch
@@ -231,47 +234,47 @@ def evaluate(args, dataset, model, save=False):
     preds = None
     out_label_ids = None
 
-    it = tqdm(eval_loader, desc="Evaluating")
-    for batch in it:
-        model.eval()
-        batch = tuple(t.to(args.device) for t in batch)
+    with tqdm(eval_loader, desc="Evaluating") as it:
+        for batch in it:
+            model.eval()
+            batch = tuple(t.to(args.device) for t in batch)
 
-        with torch.no_grad():
-            inputs = {'input_ids': batch[0],
-                      'token_type_ids': batch[2],
-                      'attention_mask': batch[3],
-                      'labels': batch[4]}
+            with torch.no_grad():
+                inputs = {'input_ids': batch[0],
+                          'token_type_ids': batch[2],
+                          'attention_mask': batch[3],
+                          'labels': batch[4]}
 
-            if not args.bert_base:
-                inputs['ambiguity_scores'] = batch[1]
+                if not args.bert_base:
+                    inputs['ambiguity_scores'] = batch[1]
 
-            outputs = model(**inputs)
-            tmp_eval_loss, logits = outputs[:2]
+                outputs = model(**inputs)
+                tmp_eval_loss, logits = outputs[:2]
 
-            eval_loss += tmp_eval_loss.item()
+                eval_loss += tmp_eval_loss.item()
 
-        eval_step += 1
+            eval_step += 1
 
-        if preds is None:
-            preds = logits.detach().cpu().numpy()
-            out_label_ids = inputs['labels'].detach().cpu().numpy()
-        else:
-            preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
-            out_label_ids = np.append(out_label_ids, inputs['labels'].detach().cpu().numpy(), axis=0)
+            if preds is None:
+                preds = logits.detach().cpu().numpy()
+                out_label_ids = inputs['labels'].detach().cpu().numpy()
+            else:
+                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+                out_label_ids = np.append(out_label_ids, inputs['labels'].detach().cpu().numpy(), axis=0)
 
-        it.set_postfix_str('Loss: {}'.format(round(eval_loss / eval_step, 5)))
+            it.set_postfix_str('Loss: {}'.format(round(eval_loss / eval_step, 5)))
 
     eval_loss = eval_loss / eval_step
     preds = np.argmax(preds, axis=1)
     results = compute_metrics(preds, out_label_ids)
     results['eval_loss'] = eval_loss
 
-    if save:
-        output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
-        with open(output_eval_file, "w") as writer:
-            logger.info("***** Eval results *****")
-            for key in sorted(results.keys()):
-                logger.info("  %s = %s", key, str(results[key]))
+    output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
+    with open(output_eval_file, "w") as writer:
+        logger.info("***** Eval results *****")
+        for key in sorted(results.keys()):
+            logger.info("  %s = %s", key, str(results[key]))
+            if save:
                 writer.write("%s = %s\n" % (key, str(results[key])))
 
     return results
