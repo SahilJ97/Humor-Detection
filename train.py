@@ -149,43 +149,55 @@ def train(args, dataset, eval_dataset, model):
     tr_loss = 0.0
     train_iterator = trange(int(args.epochs), desc='Epoch')
 
+    all_acc = []
+    all_train_loss = []
+    all_eval_loss = []
+
     for epoch in train_iterator:
         model.train()
 
         ep_loss = 0.0
-        ep_step = 0
 
-        with tqdm(train_loader, desc='Iteration') as ep_it:
-            for batch in ep_it:
-                optim.zero_grad()
-                batch = tuple(t.to(args.device) for t in batch)
+        for step, batch in enumerate(train_loader):
+            optim.zero_grad()
+            batch = tuple(t.to(args.device) for t in batch)
 
-                inputs = {'input_ids': batch[0],
-                          'token_type_ids': batch[2],
-                          'attention_mask': batch[3],
-                          'labels': batch[4]}
+            inputs = {'input_ids': batch[0],
+                      'token_type_ids': batch[2],
+                      'attention_mask': batch[3],
+                      'labels': batch[4]}
 
-                if not args.bert_base:
-                    inputs['ambiguity_scores'] = batch[1]
+            if not args.bert_base:
+                inputs['ambiguity_scores'] = batch[1]
 
-                outputs = model(**inputs)
-                loss = outputs[0]
+            outputs = model(**inputs)
+            loss = outputs[0]
 
-                loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-                optim.step()
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+            optim.step()
 
-                tr_loss += loss.item()
-                ep_loss += loss.item()
-                global_step += 1
-                ep_step += 1
+            tr_loss += loss.item()
+            ep_loss += loss.item()
+            global_step += 1
 
-                # Adds loss and accuracy to the logging iterator
-                ep_it.set_postfix_str("Loss: {}".format(round(ep_loss / ep_step,5)))
+            if global_step % 20 == 0:
+                logger.info('epoch {}, {}/{}, Loss: {}'.format(epoch, step, steps_per_ep,
+                                                         round(ep_loss / step, 5)))
 
         model.eval()
         end_of_train = args.epochs-1 == epoch
         results = evaluate(args, eval_dataset, model, save=end_of_train)
+
+        all_train_loss.append(ep_loss)
+        all_eval_loss.append(results['eval_loss'])
+        all_acc.append(results['acc'])
+
+        for i in range(len(all_train_loss)):
+            logger.info('Epoch {}, Train Loss: {}, Eval Loss: {}, Eval Acc: {}'.format(i,
+                                                               all_train_loss[i],
+                                                               all_eval_loss[i],
+                                                               all_acc[i]))
 
     return global_step, tr_loss / global_step, results
 
@@ -234,35 +246,32 @@ def evaluate(args, dataset, model, save=False):
     preds = None
     out_label_ids = None
 
-    with tqdm(eval_loader, desc="Evaluating") as it:
-        for batch in it:
-            model.eval()
-            batch = tuple(t.to(args.device) for t in batch)
+    for batch in eval_loader:
+        model.eval()
+        batch = tuple(t.to(args.device) for t in batch)
 
-            with torch.no_grad():
-                inputs = {'input_ids': batch[0],
-                          'token_type_ids': batch[2],
-                          'attention_mask': batch[3],
-                          'labels': batch[4]}
+        with torch.no_grad():
+            inputs = {'input_ids': batch[0],
+                      'token_type_ids': batch[2],
+                      'attention_mask': batch[3],
+                      'labels': batch[4]}
 
-                if not args.bert_base:
-                    inputs['ambiguity_scores'] = batch[1]
+            if not args.bert_base:
+                inputs['ambiguity_scores'] = batch[1]
 
-                outputs = model(**inputs)
-                tmp_eval_loss, logits = outputs[:2]
+            outputs = model(**inputs)
+            tmp_eval_loss, logits = outputs[:2]
 
-                eval_loss += tmp_eval_loss.item()
+            eval_loss += tmp_eval_loss.item()
 
-            eval_step += 1
+        eval_step += 1
 
-            if preds is None:
-                preds = logits.detach().cpu().numpy()
-                out_label_ids = inputs['labels'].detach().cpu().numpy()
-            else:
-                preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
-                out_label_ids = np.append(out_label_ids, inputs['labels'].detach().cpu().numpy(), axis=0)
-
-            it.set_postfix_str('Loss: {}'.format(round(eval_loss / eval_step, 5)))
+        if preds is None:
+            preds = logits.detach().cpu().numpy()
+            out_label_ids = inputs['labels'].detach().cpu().numpy()
+        else:
+            preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
+            out_label_ids = np.append(out_label_ids, inputs['labels'].detach().cpu().numpy(), axis=0)
 
     eval_loss = eval_loss / eval_step
     preds = np.argmax(preds, axis=1)
