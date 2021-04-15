@@ -85,7 +85,7 @@ def parse_args():
                         help='loads in bert-base instead of our custom model.')
     parser.add_argument('--rnn_size', type=int, default=768,
                         help='Hidden dimension of each direction of the bi-LSTM.')
-    parser.add_argument('--grad_steps', type=int, default=2)
+    parser.add_argument('--grad_steps', type=int, default=1)
 
     args = parser.parse_args()
 
@@ -178,7 +178,7 @@ def train(args, dataset, eval_dataset, model):
             outputs = model(**inputs)
             loss = outputs[0]
 
-            if args.gradient_accumulation_steps > 1:
+            if args.grad_steps > 1:
                 loss = loss / args.grad_steps
 
             loss.backward()
