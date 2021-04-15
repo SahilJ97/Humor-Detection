@@ -85,7 +85,7 @@ def parse_args():
                         help='loads in bert-base instead of our custom model.')
     parser.add_argument('--rnn_size', type=int, default=768,
                         help='Hidden dimension of each direction of the bi-LSTM.')
-    parser.add_argument('--subbatch_size', type=int, default=4)
+    parser.add_argument('--grad_steps', type=int, default=2)
 
     args = parser.parse_args()
 
@@ -134,16 +134,18 @@ def train(args, dataset, eval_dataset, model):
 
     # Loaders
     train_loader = DataLoader(dataset, shuffle=True, batch_size=args.batch_size)
-    steps_per_ep = len(dataset) / args.batch_size
 
     # Optimizer and scheduler
     optim = AdamW(model.parameters(), lr=args.learning_rate)
+
+    total_batch_size = args.batch_size * args.grad_steps
+    steps_per_ep = len(dataset) / total_batch_size
 
     # Train
     logger.info("***** Running training *****")
     logger.info("  Num examples = %d", len(dataset))
     logger.info("  Epochs = %d", args.epochs)
-    logger.info("  Instantaneous batch size per GPU = %d", args.batch_size)
+    logger.info("  Instantaneous batch size per GPU = %d", total_batch_size)
 
     # Holders for loss and acc
     global_step = 0
@@ -158,9 +160,11 @@ def train(args, dataset, eval_dataset, model):
         model.train()
 
         ep_loss = 0.0
+        ep_step = 0
+        optim.zero_grad()
 
         for step, batch in enumerate(train_loader):
-            optim.zero_grad()
+
             batch = tuple(t.to(args.device) for t in batch)
 
             inputs = {'input_ids': batch[0],
@@ -171,25 +175,26 @@ def train(args, dataset, eval_dataset, model):
             if not args.bert_base:
                 inputs['ambiguity_scores'] = batch[1]
 
-            n_subbatches = args.batch_size // args.subbatch_size
-            loss = []
-            for subbatch_number in range(n_subbatches):
-                start_index = subbatch_number * args.subbatch_size
-                subbatch = {k: v[start_index:start_index+args.subbatch_size] for k, v in inputs.items()}
-                outputs = model(**subbatch)
-                sb_loss = outputs[0] / n_subbatches
-                sb_loss.backward(retain_graph=True)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
-                loss.append(sb_loss)
-            optim.step()
-            loss = torch.sum(torch.stack(loss))
+            outputs = model(**inputs)
+            loss = outputs[0]
+
+            if args.gradient_accumulation_steps > 1:
+                loss = loss / args.grad_steps
+
+            loss.backward()
+
             tr_loss += loss.item()
             ep_loss += loss.item()
-            global_step += 1
+
+            if (step+1) % args.grad_step == 0:
+                optim.step()
+                optim.zero_grad()
+                global_step += 1
+                ep_step += 1
 
             if global_step % 20 == 0:
-                logger.info('epoch {}, {}/{}, Loss: {}'.format(epoch, step, steps_per_ep,
-                                                         round(ep_loss / step, 5)))
+                logger.info('epoch {}, {}/{}, Loss: {}'.format(epoch, ep_step, steps_per_ep,
+                                                         round(ep_loss / ep_step, 5)))
 
         model.eval()
         end_of_train = args.epochs-1 == epoch
