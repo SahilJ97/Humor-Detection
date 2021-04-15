@@ -186,7 +186,7 @@ def train(args, dataset, eval_dataset, model):
             tr_loss += loss.item()
             ep_loss += loss.item()
 
-            if (step+1) % args.grad_step == 0:
+            if (step+1) % args.grad_steps == 0:
                 optim.step()
                 optim.zero_grad()
                 global_step += 1
