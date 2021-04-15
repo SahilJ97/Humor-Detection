@@ -197,11 +197,10 @@ def train(args, dataset, eval_dataset, model):
                                                                    round(ep_loss / ep_step, 5)))
 
         model.eval()
-        end_of_train = args.epochs-1 == epoch
-        results = evaluate(args, eval_dataset, model, save=end_of_train)
+        results = evaluate(args, eval_dataset, model, save=False)
 
-        all_train_loss.append(ep_loss)
-        all_eval_loss.append(results['eval_loss'])
+        all_train_loss.append(round(ep_loss / ep_step,5))
+        all_eval_loss.append(round(results['eval_loss'], 5))
         all_acc.append(results['acc'])
 
         if all_acc[-1] == max(all_acc):
@@ -213,6 +212,15 @@ def train(args, dataset, eval_dataset, model):
                                                                all_train_loss[i],
                                                                all_eval_loss[i],
                                                                all_acc[i]))
+
+    output_eval_file = os.path.join(args.output_dir, "eval_results.txt")
+    with open(output_eval_file, "w") as writer:
+        for i in range(len(all_train_loss)):
+            out = 'Epoch {}, Train Loss: {}, Eval Loss: {}, Eval Acc: {}'.format(i+1,
+                                                               all_train_loss[i],
+                                                               all_eval_loss[i],
+                                                               all_acc[i])
+            print(out, file=writer)
 
     return global_step, tr_loss / global_step, results
 
