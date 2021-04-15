@@ -20,8 +20,6 @@ from transformers import AdamW, Trainer, TrainingArguments, BertTokenizer, BertF
 from model import HumorDetectionModel
 from dataset import HumorDetectionDataset
 
-SUBBATCH_SIZE = 8
-
 logger = logging.getLogger(__name__)
 
 # Sets the seed for reproducability
@@ -87,6 +85,7 @@ def parse_args():
                         help='loads in bert-base instead of our custom model.')
     parser.add_argument('--rnn_size', type=int, default=768,
                         help='Hidden dimension of each direction of the bi-LSTM.')
+    parser.add_argument('--subbatch_size', type=int, default=4)
 
     args = parser.parse_args()
 
@@ -172,11 +171,11 @@ def train(args, dataset, eval_dataset, model):
             if not args.bert_base:
                 inputs['ambiguity_scores'] = batch[1]
 
-            n_subbatches = args.batch_size // SUBBATCH_SIZE
+            n_subbatches = args.batch_size // args.subbatch_size
             loss = []
             for subbatch_number in range(n_subbatches):
-                start_index = subbatch_number * SUBBATCH_SIZE
-                subbatch = {k: v[start_index:start_index+SUBBATCH_SIZE] for k, v in inputs.items()}
+                start_index = subbatch_number * args.subbatch_size
+                subbatch = {k: v[start_index:start_index+args.subbatch_size] for k, v in inputs.items()}
                 outputs = model(**subbatch)
                 sb_loss = outputs[0] / n_subbatches
                 sb_loss.backward(retain_graph=True)
@@ -312,7 +311,7 @@ def main():
         a = json.load(f)
         args.__dict__.update(a)
 
-    if args.batch_size % SUBBATCH_SIZE != 0:
+    if args.batch_size % args.subbatch_size != 0:
         print("Warning: batch size not a multiple of SUBBATCH_SIZE; some of each batch will not be used.")
 
     if args.data_dir is None:
