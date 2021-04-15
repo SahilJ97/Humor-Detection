@@ -7,6 +7,14 @@ for json_file in colab_simplebert_none.json colab_ourmodel_csi.json colab_ourmod
   rm -rf "$output_dir"
   mkdir "$output_dir"
   echo Beginning training. Writing to "$output_dir"
+  if [ "$json_file" == "colab_ourmodel_csi.json" ] || [ "$json_file" == "colab_ourmodel_wordnet.json" ]
+  then
+    batch_size=8
+    grad_steps=4
+  else
+    batch_size=16
+    grad_steps=2
+  fi
   PYTHON_PATH=/root/Humor-Detection python3 train.py --overwrite_output_dir --json "$json_file" \
-  --batch_size 16 --grad_steps 2 --seed "$seed" --output_dir "$output_dir"
+  --batch_size "$batch_size" --grad_steps "$grad_steps" --seed "$seed" --output_dir "$output_dir"
 done
