@@ -69,7 +69,7 @@ def parse_args():
                         help="Epsilon for Adam optimizer.")
     parser.add_argument("--max_grad_norm", default=1.0, type=float,
                         help="Max gradient norm.")
-    parser.add_argument("--epochs", default=4.0, type=float,
+    parser.add_argument("--epochs", default=10.0, type=float,
                         help="Maximum number of training epochs to perform.")
 
     parser.add_argument("--no_cuda", action='store_true',
