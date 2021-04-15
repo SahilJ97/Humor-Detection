@@ -204,6 +204,10 @@ def train(args, dataset, eval_dataset, model):
         all_eval_loss.append(results['eval_loss'])
         all_acc.append(results['acc'])
 
+        if all_acc[-1] == max(all_acc):
+            logger.info("Saving model checkpoint to %s", args.output_dir)
+            torch.save(model.state_dict(), os.path.join(args.output_dir, "state_dict.pt"))
+
         for i in range(len(all_train_loss)):
             logger.info('Epoch {}, Train Loss: {}, Eval Loss: {}, Eval Acc: {}'.format(i+1,
                                                                all_train_loss[i],
@@ -366,10 +370,8 @@ def main():
             os.mkdir(args.output_dir)
 
         # Save - model, tokenizer, args
-        logger.info("Saving model checkpoint to %s", args.output_dir)
-        torch.save(model.state_dict(), args.output_dir)
-        tokenizer.save_pretrained(args.output_dir)
         torch.save(args, os.path.join(args.output_dir, 'training_args.bin'))
+        tokenizer.save_pretrained(args.output_dir)
 
     ## TODO: evaluation - with no training
     if args.do_eval:
