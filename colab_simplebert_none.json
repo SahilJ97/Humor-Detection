@@ -9,5 +9,7 @@
   "eval_batch_size" : 16,
   "epochs" : 15,
   "ambiguity_fn" : "none",
-  "no_cuda" : false
+  "no_cuda" : false,
+  "grad_steps" : 2,
+  "batch_size" : 16
 }

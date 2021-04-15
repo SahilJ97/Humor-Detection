@@ -139,7 +139,7 @@ def train(args, dataset, eval_dataset, model):
     optim = AdamW(model.parameters(), lr=args.learning_rate)
 
     total_batch_size = args.batch_size * args.grad_steps
-    steps_per_ep = len(dataset) / total_batch_size
+    steps_per_ep = len(dataset) // total_batch_size
 
     # Train
     logger.info("***** Running training *****")
@@ -192,9 +192,9 @@ def train(args, dataset, eval_dataset, model):
                 global_step += 1
                 ep_step += 1
 
-            if global_step % 20 == 0:
-                logger.info('epoch {}, {}/{}, Loss: {}'.format(epoch, ep_step, steps_per_ep,
-                                                         round(ep_loss / ep_step, 5)))
+                if global_step % 10 == 0:
+                    logger.info('epoch {}, {}/{}, Loss: {}'.format(epoch+1, ep_step, steps_per_ep,
+                                                                   round(ep_loss / ep_step, 5)))
 
         model.eval()
         end_of_train = args.epochs-1 == epoch
@@ -205,7 +205,7 @@ def train(args, dataset, eval_dataset, model):
         all_acc.append(results['acc'])
 
         for i in range(len(all_train_loss)):
-            logger.info('Epoch {}, Train Loss: {}, Eval Loss: {}, Eval Acc: {}'.format(i,
+            logger.info('Epoch {}, Train Loss: {}, Eval Loss: {}, Eval Acc: {}'.format(i+1,
                                                                all_train_loss[i],
                                                                all_eval_loss[i],
                                                                all_acc[i]))
@@ -315,9 +315,6 @@ def main():
     with open(args.json) as f:
         a = json.load(f)
         args.__dict__.update(a)
-
-    if args.batch_size % args.subbatch_size != 0:
-        print("Warning: batch size not a multiple of SUBBATCH_SIZE; some of each batch will not be used.")
 
     if args.data_dir is None:
         raise ValueError('Error: data_dir (Data Directory) must be specified in args.json.')
