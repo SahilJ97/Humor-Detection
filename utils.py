@@ -1,14 +1,16 @@
 import spacy
 import os
 import logging
-import torch
 import tokenizations
 
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
     os.system("python -m spacy download en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
+    try:
+        nlp = spacy.load("en_core_web_sm")
+    except IndexError:
+        print("Warning: failed to load spacy model!")
 
 
 logger = logging.getLogger(__name__)
