@@ -6,7 +6,7 @@
   "bert_base" : false,
   "eval_batch_size" : 16,
   "epochs" : 15,
-  "ambiguity_fn" : "wn",
+  "ambiguity_fn" : "csi",
   "no_cuda" : false,
   "rnn_size" : 768
 }
