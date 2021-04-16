@@ -8,7 +8,7 @@ for json_file in colab_ourmodel_wordnet.json colab_ourmodel_none.json ; do
   rm -rf "$output_dir"
   mkdir "$output_dir"
   echo Beginning training. Writing to "$output_dir"
-  if [ "$json_file" = "colab_ourmodel_csi.json" ] || [ "$json_file" = "colab_ourmodel_wordnet.json" ]
+  if [ "$json_file" = "colab_ourmodel_csi.json" ] || [ "$json_file" = "colab_ourmodel_wordnet.json" ] || [ "$json_file" = "colab_ourmodel_none.json" ]
   then
     batch_size=8
     grad_steps=4
