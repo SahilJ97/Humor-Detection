@@ -1,8 +1,8 @@
 #!/bin/sh
 seed=$1
-#colab_simplebert_none.json colab_ourmodel_csi.json
+#colab_simplebert_none.json colab_ourmodel_csi.json colab_ourmodel_wordnet.json
 
-for json_file in colab_ourmodel_wordnet.json colab_ourmodel_none.json ; do
+for json_file in colab_ourmodel_none.json ; do
   output_dir=/content/gdrive/MyDrive/Humor-Detection/"${json_file%.json}"_"$seed"
   echo "$output_dir"
   rm -rf "$output_dir"
