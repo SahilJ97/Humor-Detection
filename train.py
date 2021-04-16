@@ -74,6 +74,7 @@ def parse_args():
 
     parser.add_argument("--no_cuda", action='store_true',
                         help="Avoid using CUDA when available")
+    parser.add_argument("--overwrite_cache", action='store_true')
     parser.add_argument('--overwrite_output_dir', action='store_true',
                         help="Overwrite the content of the output directory")
     parser.add_argument('--seed', type=int, default=100,
@@ -105,7 +106,7 @@ def load_and_cache_examples(args, tokenizer, evaluate=False):
         args.ambiguity_fn,
         str(args.max_seq_length)))
 
-    if os.path.exists(cached_features_files):
+    if os.path.exists(cached_features_files) and not args.overwrite_cache:
         logger.info("Creating features from dataset file at %s", os.path.join(args.data_dir, cached_features_files))
         features = torch.load(cached_features_files)
     else:

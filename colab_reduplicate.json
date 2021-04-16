@@ -8,6 +8,7 @@
   "epochs" : 3,
   "batch_size" : 8,
   "grad_steps" : 32,
+  "overwrite_cache" : true,
   "ambiguity_fn" : "none",
   "no_cuda" : false
 }

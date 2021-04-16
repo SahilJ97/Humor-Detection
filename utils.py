@@ -41,8 +41,10 @@ def convert_dataset_to_features(dataset, max_seq_len, tokenizer):
         if ex_index % 200 == 0:
             logger.info("Writing example %d of %d" % (ex_index, len(examples)))
 
-        tokens_a = tokenizer.tokenize(example.text_a)
-        tokens_b = tokenizer.tokenize(example.text_b)
+        #tokens_a = tokenizer.tokenize(example.text_a)
+        #tokens_b = tokenizer.tokenize(example.text_b)
+        tokens_a = tokenizer.tokenize(example.original)
+        tokens_b = None
 
         try:
             encoded = tokenizer.encode_plus(
