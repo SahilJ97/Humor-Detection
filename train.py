@@ -119,11 +119,11 @@ def load_and_cache_examples(args, tokenizer, evaluate=False):
         torch.save(features, cached_features_files)
 
     # convert features to tensor dataset
-    input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
-    input_masks = torch.tensor([f.input_mask for f in features], dtype=torch.long)
-    token_type_ids = torch.tensor([f.token_type_ids for f in features], dtype=torch.long)
-    ambiguity_scores = torch.tensor([f.ambiguity for f in features], dtype=torch.long)
-    labels = torch.tensor([f.label_id for f in features], dtype=torch.long)
+    input_ids = torch.stack([f.input_ids for f in features]).long()
+    input_masks = torch.stack([f.input_mask for f in features])
+    token_type_ids = torch.stack([f.token_type_ids for f in features])
+    ambiguity_scores = torch.stack([f.ambiguity for f in features])
+    labels = torch.stack([f.label_id for f in features])
 
     dataset = TensorDataset(input_ids, input_masks, token_type_ids, ambiguity_scores, labels)
 
