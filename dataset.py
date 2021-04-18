@@ -56,26 +56,11 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
 
         self.length = len(self.line_a)
 
-    def get_examples(self):
-        examples = []
-
-        # build examples
-        for ix in range(self.length):
-            ex = InputExample(
-                text_a=self.line_a[ix],
-                text_b=self.line_b[ix],
-                label=self.labels[ix],
-                ambiguity=self.word_ambiguity[ix],
-                original=self.originals[ix]
-            )
-            examples.append(ex)
-        return examples
-
     def __len__(self):
         return self.length
 
     def __getitem__(self, index):
-        text = self.lines[index]
+        text = self.line_a[index] + " [SEP] " + self.line_b[index]
         label = self.labels[index]
         encoded = self.tokenizer.encode_plus(
             text,
@@ -85,9 +70,11 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
             truncation=False,
             return_attention_mask=True,
             return_special_tokens_mask=True,
+            return_token_type_ids=True
         )
         input_ids = torch.tensor(encoded['input_ids'], dtype=torch.long)
         attn_mask = torch.tensor(encoded['attention_mask'], dtype=torch.float)
+        token_type_ids = torch.tensor(encoded['token_type_ids'], dtype=torch.long)
 
         # Align ambiguity scores with BERT tokens
         bert_tokens = self.tokenizer.convert_ids_to_tokens(input_ids)
@@ -102,7 +89,8 @@ class HumorDetectionDataset(torch.utils.data.Dataset):
             "text": input_ids,
             "ambiguity": torch.tensor(aligned_scores),
             "pad_mask": attn_mask,
-            "label": torch.tensor(label)
+            "label": torch.tensor(label),
+            "token_type_ids": token_type_ids
         }
 
 

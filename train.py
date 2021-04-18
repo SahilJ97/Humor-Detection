@@ -119,11 +119,11 @@ def load_and_cache_examples(args, tokenizer, evaluate=False):
         torch.save(features, cached_features_files)
 
     # convert features to tensor dataset
-    input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
-    input_masks = torch.tensor([f.input_mask for f in features], dtype=torch.long)
-    token_type_ids = torch.tensor([f.token_type_ids for f in features], dtype=torch.long)
-    ambiguity_scores = torch.tensor([f.ambiguity for f in features], dtype=torch.long)
-    labels = torch.tensor([f.label_id for f in features], dtype=torch.long)
+    input_ids = torch.stack([f.input_ids for f in features]).long()
+    input_masks = torch.stack([f.input_mask for f in features])
+    token_type_ids = torch.stack([f.token_type_ids for f in features])
+    ambiguity_scores = torch.stack([f.ambiguity for f in features])
+    labels = torch.stack([f.label_id for f in features])
 
     dataset = TensorDataset(input_ids, input_masks, token_type_ids, ambiguity_scores, labels)
 
@@ -134,7 +134,10 @@ def train(args, dataset, eval_dataset, model):
     # Trains the model
 
     # Loaders
-    train_loader = DataLoader(dataset, shuffle=True, batch_size=args.batch_size)
+    #train_loader = DataLoader(dataset, shuffle=True, batch_size=args.batch_size)
+    train_set = HumorDetectionDataset(args.data_dir, args.max_seq_length, "train", args.ambiguity_fn)
+    dev_set = HumorDetectionDataset(args.data_dir, args.max_seq_length, "dev", args.ambiguity_fn)
+    train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True)
 
     # Optimizer and scheduler
     optim = AdamW(model.parameters(), lr=args.learning_rate)
@@ -163,18 +166,20 @@ def train(args, dataset, eval_dataset, model):
         ep_loss = 0.0
         ep_step = 0
         optim.zero_grad()
-
         for step, batch in enumerate(train_loader):
-
-            batch = tuple(t.to(args.device) for t in batch)
-
-            inputs = {'input_ids': batch[0],
+            """inputs = {'input_ids': batch[0],
                       'token_type_ids': batch[2],
                       'attention_mask': batch[3],
-                      'labels': batch[4]}
+                      'labels': batch[4]}"""
+            inputs = {
+                'input_ids': batch["text"].to(args.device),
+                'token_type_ids': batch["token_type_ids"].to(args.device),
+                'attention_mask': batch["pad_mask"].to(args.device),
+                'labels': batch["label"].to(args.device),
+            }
 
             if not args.bert_base:
-                inputs['ambiguity_scores'] = batch[1]
+                inputs['ambiguity_scores'] = batch["ambiguity"]
 
             outputs = model(**inputs)
             loss = outputs[0]
@@ -198,7 +203,8 @@ def train(args, dataset, eval_dataset, model):
                                                                    round(ep_loss / ep_step, 5)))
 
         model.eval()
-        results = evaluate(args, eval_dataset, model, save=False)
+        #results = evaluate(args, eval_dataset, model, save=False)
+        results = evaluate(args, dev_set, model, save=False)
 
         all_train_loss.append(round(ep_loss / ep_step,5))
         all_eval_loss.append(round(results['eval_loss'], 5))
