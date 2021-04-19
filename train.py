@@ -279,6 +279,8 @@ def evaluate(args, dataset, model, save=False):
     preds = None
     out_label_ids = None
 
+    #eval_loader instead of train_loader?
+    #need to still work on this for loop
     for step, batch in enumerate(eval_loader):
         model.eval()
         batch = tuple(t.to(args.device) for t in batch)
