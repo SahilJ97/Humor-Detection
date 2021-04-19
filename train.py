@@ -92,44 +92,6 @@ def parse_args():
 
     return args
 
-
-def load_and_cache_examples(args, tokenizer, evaluate=False):
-    '''
-    Loads in a cached file for training and/or builds a cached file for this data
-
-    :return:
-    '''
-    # Build the dataset
-    task = 'dev' if evaluate else 'train'
-    cached_features_files = os.path.join(args.data_dir, 'cached_{}_{}_{}'.format(
-        task,
-        args.ambiguity_fn,
-        str(args.max_seq_length)))
-
-    if os.path.exists(cached_features_files) and not args.overwrite_cache:
-        logger.info("Creating features from dataset file at %s", os.path.join(args.data_dir, cached_features_files))
-        features = torch.load(cached_features_files)
-    else:
-        logger.info("Creating features from dataset file at %s", args.data_dir)
-
-        dataset = HumorDetectionDataset(args.data_dir, args.max_seq_length, task, args.ambiguity_fn)
-        features = convert_dataset_to_features(dataset, args.max_seq_length, tokenizer)
-
-        logger.info("Saving features into cached file %s", cached_features_files)
-        torch.save(features, cached_features_files)
-
-    # convert features to tensor dataset
-    input_ids = torch.stack([f.input_ids for f in features]).long()
-    input_masks = torch.stack([f.input_mask for f in features])
-    token_type_ids = torch.stack([f.token_type_ids for f in features])
-    ambiguity_scores = torch.stack([f.ambiguity for f in features])
-    labels = torch.stack([f.label_id for f in features])
-
-    dataset = TensorDataset(input_ids, input_masks, token_type_ids, ambiguity_scores, labels)
-
-    return dataset
-
-
 def train(args, dataset, eval_dataset, model):
     # Trains the model
 
@@ -270,7 +232,7 @@ def evaluate(args, dataset, model, save=False):
     preds = None
     out_label_ids = None
 
-    for batch in eval_loader:
+    for step, batch in enumerate(eval_loader):
         model.eval()
         batch = tuple(t.to(args.device) for t in batch)
 
@@ -365,8 +327,8 @@ def main():
         tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
         # Build dataset and train
-        train_dataset = load_and_cache_examples(args, tokenizer)
-        eval_dataset = load_and_cache_examples(args, tokenizer, True)
+        train_dataset = HumorDetectionDataset(args.data_dir, args.max_seq_length, 'train', args.ambiguity_fn)
+        eval_dataset = HumorDetectionDataset(args.data_dir, args.max_seq_length, 'dev', args.ambiguity_fn)
 
         #print('Trainer attempt')
         #train_trainer(args, train_dataset, eval_dataset, model)
