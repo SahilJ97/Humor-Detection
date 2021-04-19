@@ -92,47 +92,6 @@ def parse_args():
 
     return args
 
-<<<<<<< HEAD
-=======
-
-def load_and_cache_examples(args, tokenizer, evaluate=False):
-    '''
-    Loads in a cached file for training and/or builds a cached file for this data
-
-    :return:
-    '''
-    # Build the dataset
-    task = 'dev' if evaluate else 'train'
-    cached_features_files = os.path.join(args.data_dir, 'cached_{}_{}_{}'.format(
-        task,
-        args.ambiguity_fn,
-        str(args.max_seq_length)))
-
-    if os.path.exists(cached_features_files) and not args.overwrite_cache:
-        logger.info("Creating features from dataset file at %s", os.path.join(args.data_dir, cached_features_files))
-        features = torch.load(cached_features_files)
-    else:
-        logger.info("Creating features from dataset file at %s", args.data_dir)
-
-        dataset = HumorDetectionDataset(args.data_dir, args.max_seq_length, task, args.ambiguity_fn)
-        features = convert_dataset_to_features(dataset, args.max_seq_length, tokenizer)
-
-        logger.info("Saving features into cached file %s", cached_features_files)
-        torch.save(features, cached_features_files)
-
-    # convert features to tensor dataset
-    input_ids = torch.stack([f.input_ids for f in features]).long()
-    input_masks = torch.stack([f.input_mask for f in features])
-    token_type_ids = torch.stack([f.token_type_ids for f in features])
-    ambiguity_scores = torch.stack([f.ambiguity for f in features])
-    labels = torch.stack([f.label_id for f in features])
-
-    dataset = TensorDataset(input_ids, input_masks, token_type_ids, ambiguity_scores, labels)
-
-    return dataset
-
-
->>>>>>> 6321c7a40d43fb2dccfe74f1c67fd9a6e99228f4
 def train(args, dataset, eval_dataset, model):
     # Trains the model
 
